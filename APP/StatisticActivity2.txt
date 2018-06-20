@@ -1,0 +1,54 @@
+package com.example.foothing;
+
+
+
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.res.AssetManager;
+import android.os.Bundle;
+import android.renderscript.Sampler;
+import android.support.v4.app.FragmentActivity;
+import android.view.Window;
+import android.view.WindowManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.LinearLayout;
+
+public class StatisticActivity2 extends Activity{
+
+	
+    
+	
+	public void onCreate(Bundle savedInstanceState){
+		super.onCreate(savedInstanceState);
+		
+	}
+		
+
+	protected void onStart(){
+		super.onStart();
+	}
+	
+	protected void onResume(){
+		super.onResume();
+	}
+	
+	protected void onPause(){
+		super.onPause();
+	}
+	
+	protected void onStop(){
+		super.onStop();
+	}
+	
+	protected void onDestroy(){
+		super.onDestroy();
+	}
+	
+}

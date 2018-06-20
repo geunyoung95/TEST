@@ -1,0 +1,73 @@
+package com.example.foothing;
+
+import java.util.ArrayList;
+
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+public class CustomAdapter extends ArrayAdapter<StatisticList>{
+
+	
+	private LayoutInflater m_inflager = null;
+    private ArrayList<StatisticList> m_data_list = null;
+    private int m_recource_id;
+    
+    
+	public CustomAdapter(Context context, int resource, ArrayList<StatisticList> items) {
+		super(context, resource,items);
+		// TODO Auto-generated constructor stub
+        
+        m_data_list = items;
+        m_recource_id = resource;
+        m_inflager = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        
+    }           
+    
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent)
+    {
+        View view;
+        
+
+        if(convertView == null) {
+            view = m_inflager.inflate(m_recource_id, null); 
+         
+	        	
+        } else {
+            view = convertView;
+        }
+
+        StatisticList data = m_data_list.get(position);
+        
+        if(data != null) {
+            ImageView f_imageview = (ImageView) view.findViewById(R.id.f_image);
+            TextView date_view = (TextView) view.findViewById(R.id.name_date);
+            ImageView b_imageview = (ImageView) view.findViewById(R.id.b_image);
+            
+            f_imageview.setImageResource(data.getFicon());
+            b_imageview.setImageResource(data.getBicon());
+
+            date_view.setText(data.getDate());
+            Typeface typeFace = Typeface.createFromAsset(getContext().getAssets(), "Ubuntu-Light.ttf");
+            date_view.setTypeface(typeFace);
+          
+          
+       
+    }
+		return view;
+   }
+    
+    
+  
+}
+
+

@@ -1,0 +1,294 @@
+package com.example.foothing;
+
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Message;
+import android.support.v4.view.ViewPager;
+import android.util.AttributeSet;
+import android.util.Log;
+import android.util.TypedValue;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.GestureDetector.OnGestureListener;
+import android.view.View.MeasureSpec;
+import android.view.View.OnClickListener;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+
+public class Tabbar extends View implements OnClickListener{
+
+	/** Size of tabbar */
+	int mWidth;
+	int mHeight;
+	
+	
+	/** page number and positions */
+	/** position means how much user moved menu by scrolling */
+	//int pageNumber;
+	float position;
+	int state;
+	
+	/** ViewPager */
+	ViewPager mPager;
+	
+	/** Paint Components */
+	Paint mBorderPaint;
+	Paint mPaint1;
+	RectF mRectF1;
+	Paint mPaint2;
+	RectF mRectF2;
+	Paint mTextPaint1;
+	Paint mTextPaint2;
+	
+	/** Typeface */
+	Typeface mTypeface;
+	
+	/** Paint variables */
+	int BorderlineHeight = 4;
+	
+	/** GUI handler when user call onfling function */
+	Handler barHandler = new Handler(){
+
+		@Override
+		public void handleMessage(Message msg) {
+			Log.v("handler", "handling msg");
+			position += new Float(msg.obj.toString());
+			setPosition(position);
+		}
+		
+	};
+	
+	
+	
+	
+	private GestureDetector mGestureDetector;
+	
+	public Tabbar(Context context, ViewPager Pager){
+		super(context);
+		
+		/** initiate global variables */
+		mPager = Pager;
+		//pageNumber = 0;
+		/** Gesture Detector */
+		mGestureDetector = new GestureDetector(context, mGestureListener);
+		
+		/** initiate Paint Components */
+		mBorderPaint = new Paint();
+		mBorderPaint.setStrokeWidth(BorderlineHeight);
+		mBorderPaint.setAntiAlias(true);
+		mBorderPaint.setColor(Color.argb(255, 180, 180, 180));
+		
+		mPaint1 = new Paint();
+		mPaint1.setAntiAlias(true);
+		mPaint1.setColor(Color.argb(160 ,255, 159, 62));
+		mRectF1 = new RectF();
+		
+		mPaint2 = new Paint();
+		mPaint2.setAntiAlias(true);
+		mPaint2.setColor(Color.argb(200, 243, 169, 114));
+		mRectF2 = new RectF();
+		
+		mTypeface = Typeface.createFromAsset(context.getAssets(), "Ubuntu-Light.ttf");
+		
+		mTextPaint1 = new Paint();
+		mTextPaint1.setAntiAlias(true);
+		mTextPaint1.setColor(Color.WHITE);
+		mTextPaint1.setTypeface(mTypeface);
+		mTextPaint2 = new Paint();
+		mTextPaint2.setAntiAlias(true);
+		mTextPaint2.setColor(Color.WHITE);
+		mTextPaint2.setTypeface(mTypeface);
+		
+		setPosition(position);
+		
+	}
+	
+	@Override
+	protected void onDraw(Canvas canvas) {
+		
+		mTextPaint2.setTextSize((float) (0.7*mHeight));
+		mTextPaint1.setTextSize((float) (0.7*mHeight));
+		
+		// TODO Auto-generated method stub
+		mRectF1.set(0, 0/*BorderlineHeight*/, position, mHeight-BorderlineHeight/2);
+		canvas.drawRect(mRectF1, mPaint1);
+		mRectF2.set(position, 0/*BorderlineHeight*/, mWidth, mHeight-BorderlineHeight/2);
+		canvas.drawRect(mRectF2, mPaint2);
+		canvas.drawText("statistics", (float) (0.1*mWidth + position), 
+				(float) (0.70*mHeight), mTextPaint2);
+		canvas.drawText("status", (float) (-0.8*mWidth + position), 
+				(float) (0.70*mHeight), mTextPaint1);
+		mBorderPaint.setColor(Color.argb(255, 255, 131, 63));
+		canvas.drawLine(0, mHeight-BorderlineHeight/2, mWidth, mHeight-BorderlineHeight/2, mBorderPaint);
+	}
+
+	@Override
+	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+		// TODO Auto-generated method stub
+		mWidth = MeasureSpec.getSize(widthMeasureSpec);
+		mHeight = MeasureSpec.getSize(heightMeasureSpec);
+		Log.v("parentSize",mWidth+"  "+mHeight);
+		position = (float) (0.9*mWidth);
+		Log.v("position",""+position);
+		setMeasuredDimension(mWidth, mHeight);
+		
+	}
+	
+	public void setPosition(float p) {
+		position = p;
+		if(position < 0.1*mWidth) position = (float) (0.1*mWidth); 
+		if(position > 0.9*mWidth) position = (float) (0.9*mWidth);
+		invalidate();
+	}
+	
+	public void moveRemainedDistance(float velocityX) {
+		MoveThread mThread = new MoveThread(mWidth, position, velocityX, barHandler);
+		mThread.start();
+	}
+		
+	@Override
+	public void onClick(View v) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	/**Gesture Related Functions (Override) */
+	
+		@Override
+		public boolean onTouchEvent(MotionEvent event) {
+			// TODO Auto-generated method stub
+			
+			Log.v("State","OnTouched");
+			
+			mGestureDetector.onTouchEvent(event);
+			
+			switch (event.getAction() & MotionEvent.ACTION_MASK) {
+				
+				case MotionEvent.ACTION_UP:
+					Log.v("State","finished");
+					Log.v("STATE", ""+state);
+					if(position < 0.5*mWidth && state == 0){
+						if(mPager.getCurrentItem()==0)					moveRemainedDistance(-1);
+						else	mPager.setCurrentItem(0,true);
+					}else if(position > 0.5*mWidth && state == 0){
+						if(mPager.getCurrentItem()==1)					moveRemainedDistance(1);
+						else	mPager.setCurrentItem(1,true);
+					}
+                break;
+           }
+			return true;
+		}
+	
+	OnGestureListener mGestureListener = new OnGestureListener() {
+		
+		
+		@Override
+		public boolean onSingleTapUp(MotionEvent e) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+		
+		@Override
+		public void onShowPress(MotionEvent e) {
+			// TODO Auto-generated method stub
+			
+		}
+		
+		@SuppressLint("NewApi")
+		@Override
+		public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX,
+				float distanceY) {
+			state = 0;
+			position -= distanceX;
+			setPosition(position);
+			
+			
+			return true;
+		}
+		
+		@Override
+		public void onLongPress(MotionEvent e) {
+			// TODO Auto-generated method stub
+			
+		}
+		
+		@Override
+		public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
+				float velocityY) {
+			// TODO Auto-generated method stub
+			Log.v("STATE", "ONFLING");
+			Log.v("STATE", ""+state+"  "+velocityX);
+			if(velocityX>400 && mPager.getCurrentItem()==0){
+				state = 1;
+				mPager.setCurrentItem(1, true);
+			}
+			if(velocityX<-400 && mPager.getCurrentItem()==1){
+				state = 1;
+				mPager.setCurrentItem(0, true);	
+			}
+			
+			return true;
+		}
+		
+		@Override
+		public boolean onDown(MotionEvent e) {
+			// TODO Auto-generated method stub
+			return true;
+		}
+	};
+}
+
+
+class MoveThread extends Thread{
+	
+	int mWidth;
+	float distance;
+	float velocity;
+	float toMoveDistance;
+	Handler mHandler;
+	
+	
+	public MoveThread(int width, float position, float velocityY, Handler handler){
+		mWidth = width;
+		distance = position;
+		velocity = velocityY;
+		mHandler = handler;
+	}
+
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+		Log.v("HandlerState", ""+distance);
+		Log.v("HandlerWidth", ""+mWidth);
+		
+		if(velocity>0){
+			toMoveDistance = (mWidth - distance);
+		}else{
+			toMoveDistance = -distance;
+		}
+		
+		for(int i=0; i<50; i++){
+			Message msg = mHandler.obtainMessage();
+			msg.obj = (toMoveDistance/50);
+			mHandler.sendMessage(msg);
+			try {
+				sleep(5);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				Log.v("Thread", "interrupted");
+			}
+		}
+		
+	}
+	
+	
+}
+
+	

@@ -1,0 +1,658 @@
+#include <SoftwareSerial.h>
+
+#define RIGHT_FRONT_SENSOR 0
+#define RIGHT_IN_SENSOR 1
+#define RIGHT_OUT_SENSOR 2
+#define LEFT_FRONT_SENSOR 3
+#define LEFT_IN_SENSOR 4
+#define LEFT_OUT_SENSOR 5
+
+#define BLUETOOTH_FINISH 0
+#define BLUETOOTH_HANDSHAKE 1
+#define BLUETOOTH_SEND_A 2
+#define BLUETOOTH_POLLING_B 3
+#define BLUETOOTH_SEND_B 4
+#define BLUETOOTH_POLLING_C 5
+#define BLUETOOTH_SEND_C 6
+#define BLUETOOTH_POLLING_D 7
+#define BLUETOOTH_ERR 8
+
+#define ABSOLUTE_INT(a) ((a) < (0)) ? (a)*(-1) : (a)
+#define ABSOLUTE_CHAR(c) ((c) < (0)) ? (c)*(-1) : (c)
+#define HIGH_BYTE(a) ((a) / (256))
+#define LOW_BYTE(a) ((a) % (256))
+
+SoftwareSerial BtSerial (4,5);
+
+enum
+{
+  START,
+  DATA_GATHERING,
+  STATE_CHECK,
+  MOVING,
+  NOT_MOVING,
+  SITTING,
+  STANDING,
+  ERR,
+};
+
+struct data
+{
+  int R_Front;
+  int R_In;
+  int R_Out;
+  int L_Front;
+  int L_In;
+  int L_Out;
+};
+
+volatile unsigned char STATE;
+volatile unsigned char prev_state;
+static int standing_time;
+static int sitting_time;
+static int moving_time;
+static int how_many_steps;
+static char buffer[900];
+static int count_for_buffer;
+static int count_for_bluetooth;
+
+void read_data (struct data *);
+void adjust_data (struct data *, struct data *);
+void save_data (struct data *, struct data *);
+void stand_or_not_adder (int *, struct data *);
+boolean moving_or_not_func (struct data *);
+boolean stand_or_not_func (int);
+char moving_analysis (struct data);
+char moving_analysis_tail (int, int, int, boolean);
+void calculate_steps (int);
+void data_clear (struct data *);
+
+int (*bluetooth_func[9]) (int *) = {bluetooth_finish, bluetooth_handshake, bluetooth_send_A, bluetooth_polling_B, 
+                                    bluetooth_send_B, bluetooth_polling_C, bluetooth_send_C, bluetooth_polling_D, bluetooth_err};
+                                    
+void bluetooth (void);
+int bluetooth_err (void);
+int bluetooth_handshake (void);
+int bluetooth_send_A (void);
+int bluetooth_polling_B (void);
+int bluetooth_send_B (void);
+int bluetooth_pollinc_C (void);
+int bluetooth_send_C (void);
+int bluetooth_finish (void);
+
+void
+read_data (struct data *t)
+{
+  t->R_Front = analogRead(RIGHT_FRONT_SENSOR);
+  t->R_In = analogRead(RIGHT_IN_SENSOR);
+  t->R_Out = analogRead(RIGHT_OUT_SENSOR);
+  t->L_Front = analogRead(LEFT_FRONT_SENSOR);
+  t->L_In = analogRead(LEFT_IN_SENSOR);
+  t->L_Out = analogRead(LEFT_OUT_SENSOR);
+}
+
+void
+adjust_data (struct data *t, struct data *init)
+{
+  t->R_Front -= init->R_Front;
+  t->R_In -= init->R_In;
+  t->R_Out -= init->R_Out;
+  t->L_Front -= init->L_Front;
+  t->L_In -= init->L_In;
+  t->L_Out -= init->L_Out;
+  
+  t->R_Front > 0 ? t->R_Front *= 1.11 : t->R_Front *= 1.2;
+  t->R_In > 0 ? t->R_In *= 0.37 : t->R_In *= 1.13;
+  t->R_Out > 0 ? t->R_Out *= 1 : t->R_Out *= 0.94;
+  t->L_Front > 0 ? t->L_Front *= 0.63 : t->L_Front *= 1;
+  t->L_In > 0 ? t->L_In *= 0.6 : t->L_In *= 0.75;
+  t->L_Out > 0 ? t->L_Out *= 0.68 : t->L_Out *= 1.76;
+}
+
+void
+save_data (struct data *t, struct data *m)
+{
+  t->R_Front > m->R_Front ? : m->R_Front = t->R_Front;
+  t->R_In > m->R_In ? : m->R_In = t->R_In;
+  t->R_Out > m->R_Out ? : m->R_Out = t->R_Out;
+  t->L_Front > m->L_Front ? : m->L_Front = t->L_Front;
+  t->L_In > m->L_In ? : m->L_In = t->L_In;
+  t->L_Out > m->L_Out ? : m->L_Out = t->L_Out;
+}
+
+void
+stand_or_not_adder (int *i, struct data *t)
+{
+  *i += t->R_Front + t->R_In + t->R_Out + t-> L_Front + t->L_In + t->L_Out;
+}
+
+boolean
+moving_or_not_func (struct data *t)
+{
+  if ((t->R_Front < -30 || t->R_In < -30 || t->R_Out < -30) && (t->L_Front < -30 || t->L_In < -30 || t->L_Out < -30))
+    return true;    //MOVING
+  else
+    return false;   //NOT MOVING
+}
+
+boolean
+stand_or_not_func (int i)
+{
+  if (i > -250)
+    return false;   //SITTING
+  else
+    return true;    //STANDING
+}
+
+char
+moving_analysis (struct data t)
+{
+  char L_Result, R_Result;
+  char tmp;
+  
+  L_Result = moving_analysis_tail (t.L_Front, t.L_In, t.L_Out, true);
+  R_Result = moving_analysis_tail (t.R_Front, t.R_In, t.R_Out, false);
+  
+  if (ABSOLUTE_CHAR (L_Result - R_Result) > 4)
+  {
+    if (count_for_buffer > 0)
+    {
+      if ((ABSOLUTE_CHAR(L_Result - buffer[count_for_buffer]) > ABSOLUTE_CHAR(R_Result - buffer[count_for_buffer])))
+        L_Result = buffer[(count_for_buffer) - 1];
+      else
+        R_Result = buffer[(count_for_buffer) - 1];
+    }
+  }
+  //sagi
+  tmp = ((L_Result + R_Result) / 2);
+  if (tmp == 9)
+    tmp = 8;
+    
+  return tmp;
+}
+
+char
+moving_analysis_tail (int F, int I, int O, boolean Left)
+{
+  int FO = F - O;    //Front value - Out value
+  int IO = ABSOLUTE_INT(I - O);    //In value - Out value
+  
+  if (Left)
+  {
+    if (FO > 0)
+    {
+      if (FO > 20)
+      {
+        if (FO > 30)
+          return 1;
+        return 2;
+      }
+      else
+      {
+        if (FO > 10)
+          return 3;
+        return 4;
+      }
+    }
+    else if (FO > -40)
+    {
+      if (FO > -20)
+      {
+        if (FO > -10)
+          return 5;
+        return 6;
+      }
+      else
+      {
+        if (FO > -30)
+          return 7;
+        return 8;
+      }
+    }
+    else
+    {
+      if (IO < 10)
+        return 10;
+      else if (IO < 7)
+        return 11;
+      else if (IO < 5)
+        return 12;
+      else
+        return 13;
+    }
+  }
+  else
+  {
+    if (FO < -15)
+    {
+      if (FO < -30)
+      {
+        if (FO < -40)
+          return 9;
+        else if (FO < -35)
+          return 10;
+        return 11;
+      }
+      else
+      {
+        if (FO < -25)
+          return 12;
+        else if (FO < -20)
+          return 13;
+        return 6;
+      }
+    }
+    else
+    {
+      if (FO < 0)
+      {
+        if (FO < -10)
+          return 5;
+        else if (FO < -5)
+          return 4;
+        return 3;
+      }
+      else
+      {
+        if (FO < 5)
+          return 2;
+        return 1;
+      }
+    }
+  }
+}
+
+void
+calculate_steps (int a)
+{
+  static int count;
+  static int L_Front_prev, L_Front_cur, L_Front_next;
+  
+  L_Front_prev = L_Front_cur;
+  L_Front_cur = L_Front_next;
+  L_Front_next = a;
+  
+  if(L_Front_cur < -40){
+    if(count > 2){  
+      if(L_Front_prev > L_Front_cur && L_Front_cur < L_Front_next){
+        how_many_steps += 2;
+        count = 0;
+      }
+    }
+  }
+  else{
+    count++;
+  }
+}
+
+void
+data_clear (struct data *t)
+{
+  t->R_Front = 0;
+  t->R_In = 0;
+  t->R_Out = 0;
+  t->L_Front = 0;
+  t->L_In = 0;
+  t->L_Out = 0;
+}
+
+void
+bluetooth (void)
+{
+  static int bluetooth_timer;
+  int mode = BLUETOOTH_HANDSHAKE;
+  if (BtSerial.available ()){
+    while (mode)
+    {
+      mode = bluetooth_func[mode](&bluetooth_timer);
+    }
+  }
+  bluetooth_timer = 0;
+}
+
+int
+bluetooth_finish (int *i)
+{
+  //Serial.println("BLUETOOTH FINISH");
+  return BLUETOOTH_FINISH;
+}
+
+int
+bluetooth_polling_D (int *i)
+{
+  //Serial.println("BLUETOOTH POLLING D");
+  if(BtSerial.read () != 5)
+  {
+    *i++;
+    //delay (10);
+    
+    if (*i < 1000)
+      return BLUETOOTH_POLLING_D;
+    else
+      return BLUETOOTH_ERR;
+  }
+  else
+  {
+    Serial.println("SUCCESS");
+    BtSerial.flush ();
+    BtSerial.write (105);
+    return BLUETOOTH_FINISH;
+  }
+}
+
+int
+bluetooth_send_C (int *i)
+{
+  //Serial.println("BLUETOOTH SEND C");
+  if (count_for_bluetooth < count_for_buffer)
+  {
+    BtSerial.write (buffer[count_for_bluetooth]);
+    count_for_bluetooth++;
+    return BLUETOOTH_SEND_C;
+  }
+  else
+    return BLUETOOTH_POLLING_D;
+}
+
+int
+bluetooth_polling_C (int *i)
+{
+  //Serial.println("BLUETOOTH POLLING C");
+  if (BtSerial.read () != 3)
+  {
+    *i++;
+    
+    if (*i < 1000)
+      return BLUETOOTH_POLLING_C;
+    else
+      return BLUETOOTH_ERR;
+  }
+  else
+  {
+    BtSerial.flush ();
+    //delay (50);
+    BtSerial.write (105);
+    return BLUETOOTH_SEND_C;
+  }
+}
+
+int
+bluetooth_send_B (int *i)
+{
+  //Serial.println("BLUETOOTH SEND B");
+  int tmp = count_for_buffer - count_for_bluetooth;
+  
+  BtSerial.write (HIGH_BYTE (tmp));
+  //delay (10);
+  BtSerial.write (LOW_BYTE (tmp));
+  
+  return BLUETOOTH_POLLING_C;
+}
+
+int
+bluetooth_polling_B (int *i)
+{
+  //Serial.println("BLUETOOTH POLLING B");
+  if (BtSerial.read () != 2)
+  {
+    *i++;
+    
+    if (*i < 1000)
+      return BLUETOOTH_POLLING_B;
+    else
+      return BLUETOOTH_ERR;
+  }
+  else
+  {
+    BtSerial.write (105);
+    return BLUETOOTH_SEND_B;
+  }
+}
+
+int
+bluetooth_send_A (int *i)
+{
+  //Serial.println("BLUETOOTH SEND A");
+  BtSerial.write (HIGH_BYTE (sitting_time));
+  BtSerial.write (LOW_BYTE (sitting_time));
+  BtSerial.write (HIGH_BYTE (standing_time));
+  BtSerial.write (LOW_BYTE (standing_time));
+  BtSerial.write (HIGH_BYTE (moving_time));
+  BtSerial.write (LOW_BYTE (moving_time));
+  BtSerial.write (HIGH_BYTE (how_many_steps));
+  BtSerial.write (LOW_BYTE (how_many_steps));
+  
+  if(prev_state == SITTING)
+  {
+    BtSerial.write(15);
+  }
+  else if (prev_state == STANDING)
+  {
+    BtSerial.write(14);
+  }
+  else
+  {
+    BtSerial.write(-2);
+  }
+  
+  return BLUETOOTH_POLLING_B;
+}
+
+int
+bluetooth_handshake (int *i)
+{
+  //Serial.println("BLUETOOTH HANDSHAKE");
+  if (BtSerial.read () != 1)
+  {
+    *i++;
+    //delay (10);
+    Serial.print("Count : ");
+    Serial.println(*i);
+    if (*i < 1000)
+      return BLUETOOTH_HANDSHAKE;
+    else
+      return BLUETOOTH_ERR;
+  }
+  else
+  {
+    BtSerial.write (105);
+    BtSerial.flush ();
+    return BLUETOOTH_SEND_A;
+  }
+}
+
+int
+bluetooth_err (int *i)
+{
+  //Serial.println("BLUETOOTH ERROR");
+  BtSerial.write (105);
+  return BLUETOOTH_FINISH;
+}
+
+void
+setup (void)
+{
+  Serial.begin (9600);
+  BtSerial.begin (9600);
+}
+
+void
+loop (void)
+{
+  static int data_gathering_counter;
+  static int stand_or_not_var;
+  static data data_initial;
+  static data data_minimum;
+  data data_current;
+  char a = -3;
+  
+  switch (STATE)
+  {
+    case DATA_GATHERING:
+      /* DATA_GATHERING state.
+       * This state is important.
+       * All analysis function or update timer value are synchronized with this state.
+       * When program enter this state, keep the same state until 50 times.
+       * This means the program collect data 50time * 100ms = 5seconds.
+       */
+       
+      // If previous state is MOVING, then calculate the number of steps.
+      if (prev_state == MOVING)
+        calculate_steps (data_current.L_Front);
+        
+      /* Read current data.
+       * All sensor value has to be adjusted.
+       * After adjust_data function, data_current will:
+       * data_current = (data_current - data_initial) * (tiny adjusting value)
+       */
+      read_data (&data_current);
+      adjust_data (&data_current, &data_initial);
+      
+      /* If data_current value is smaller than data_minimum,
+       * replace the data_minimum value to the data_current value.
+       */  
+      save_data (&data_current, &data_minimum);
+      
+      // Increase special counter value for distinguish stand or not.
+      stand_or_not_adder (&stand_or_not_var, &data_current);
+      
+      // If program collect data 50tims, then change state to STATE_CHECK.
+      data_gathering_counter++;
+      if (data_gathering_counter == 50)
+      {
+        Serial.println("STATE: DATA_GATHERING");
+        STATE = STATE_CHECK;
+        data_gathering_counter = 0;
+        prev_state = DATA_GATHERING;
+      }
+      delay (100);
+      break;
+    case STATE_CHECK:
+      Serial.println("STATE: STATE_CHECK");
+      bluetooth();
+      
+      /* STATE_CHECK state.
+       * This state will check your state moving or not.
+       */
+      if (moving_or_not_func (&data_minimum))
+      {
+        STATE = MOVING;
+        prev_state = STATE_CHECK;
+      }
+      else
+      {
+        STATE = NOT_MOVING;
+        prev_state = NOT_MOVING;
+      }
+      break;
+      
+    case MOVING:
+      Serial.println("STATE: MOVING");
+      
+      /* Increment moving_time.
+       * One moving_time increment means you kept walking(or running) for 5seconds.
+       * eg) Moving_time: 105 
+       *     refers to 510seconds.
+       */
+      moving_time++;
+      
+      // Save one byte analysis value to the buffer.
+      count_for_buffer++;
+      buffer[count_for_buffer] = moving_analysis (data_minimum);
+      
+      // Check buffer is full
+      if (count_for_buffer >= 900)
+        count_for_buffer = 0;
+      
+      // Reset the data_minimum value to 0
+      data_clear (&data_minimum);
+      
+      /* Change state to DATA_GATHERING to collect new data.
+       * Change prev_state to MOVING.
+       */
+      STATE = DATA_GATHERING;
+      prev_state = MOVING;
+      break;
+      
+    case NOT_MOVING:
+      Serial.println("STATE: NOT_MOVING");
+      
+      /* Check state STANDING or SITTING.
+       * stand_or_not_var is a special counter value.
+       * If you are standing, stand_or_not_func will return true.
+       * If you are sitting, stand_or_not_func will return false.
+       */
+      if (stand_or_not_func (stand_or_not_var))
+        STATE = STANDING;
+      else
+        STATE = SITTING;
+        
+      /* Reset stand_or_not_var to 0.
+       * Because stand_or_not_func returns state every 5seconds.
+       * Set prev_state to NOT_MOVING.
+       */
+      stand_or_not_var = 0;
+      prev_state = NOT_MOVING;
+      break;
+      
+    case SITTING:
+      Serial.println("STATE: SITTING");
+      
+      /* Increment sitting_time.
+       * One sitting_time increment means you kept sit down pose for 5seconds.
+       * eg) sitting_time: 1115 
+       *     refers to 5575seconds.
+       */
+      sitting_time++;
+      
+      // Change current state and previous state.
+      STATE = DATA_GATHERING;
+      prev_state = SITTING;
+      break;
+      
+    case STANDING:
+      Serial.println("STATE: STANDING");
+      
+      /* Increment standing_time.
+       * One standing_time increment means you kept standing pose for 5seconds.
+       * eg) standing_time: 105 
+       *     refers to 510seconds.
+       */
+      standing_time++;
+            
+      // Change current state and previous state.
+      STATE = DATA_GATHERING;
+      prev_state = STANDING;
+      break;
+      
+    case START:
+      Serial.println("STATE: START");
+      
+      /* START state.
+       * The program pass this state only one time when the program is first booted.
+       * Measure all six flexible sensor's initial values and save it.
+       * After START state, all sensor read data will keep this format.
+       * data = data - data_initial
+       */
+      read_data (&data_initial);
+      
+      // Move to DATA_GATHERING state and save previous state.
+      STATE = DATA_GATHERING;
+      prev_state = START;
+      
+      // Delay few seconds for waiting time to wear shoes.
+      delay(1000);
+      break;
+      
+    case ERR:
+      Serial.println("STATE: ERR");
+      
+      /* The program will enter ERR state when some sensor and arduino is disconnected.
+       * Program will fall infinite loop.
+       */
+      break;
+      
+    default:
+      break;
+  }
+}

@@ -1,0 +1,155 @@
+package com.example.foothing;
+
+import java.util.ArrayList;
+
+import android.app.Activity;
+import android.content.Context;
+import android.graphics.Typeface;
+import android.os.CountDownTimer;
+import android.os.Handler;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.widget.ArrayAdapter;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+public class StatusLayout extends LinearLayout{
+
+	/**
+	private ArrayList<Info> data_list;
+	private ArrayAdapter<Info> m_adapter = null;
+	**/
+	private LinearLayout l1;
+	public WalkingStatus walkingStatusView;
+	
+	/***/
+	private TextView tv1;
+	public TextView stateText;
+	private TextView tv3;
+	public TextView walkingText;
+	public TextView statusTimer;
+	public TextView stepper;
+	
+	public ImageView stateView;
+	
+	//DBAdapter mDb;
+	
+	Handler updateHandler;
+	Typeface mTypeface;
+	Typeface mTypeface2;
+	int second;
+	int minute;
+	int hour;
+	
+	private static final int STANDING = 1;
+    private static final int SITTING = 2;
+    private static final int WALKING = 3;
+    
+	int walkingtime =0;
+	int standingtime =0;
+	int sittingtime =0;
+	int prestate =STANDING;
+	
+	
+	public StatusLayout(Context context) {
+		super(context);
+		init(context);
+	}
+	
+	public void changeTime(int toState){
+		
+		switch(prestate){
+		case WALKING:
+			walkingtime = second + 60*minute + 3600*hour;
+			break;
+		case SITTING:
+			sittingtime = second + 60*minute + 3600*hour;
+			break;
+		case STANDING:
+			standingtime = second + 60*minute + 3600*hour;
+			break;
+		}
+		switch(toState){
+		case WALKING:
+			hour = walkingtime / 3600;
+			minute = (walkingtime%3600)/60;
+			second = walkingtime % 60;
+			break;
+		case SITTING:
+			hour = sittingtime / 3600;
+			minute = (sittingtime%3600)/60;
+			second = sittingtime % 60;
+			break;
+		case STANDING:
+			hour = standingtime / 3600;
+			minute = (standingtime%3600)/60;
+			second = standingtime % 60;
+			break;
+		}
+	}
+	
+	public void init(Context context) {
+		LayoutInflater inflater = (LayoutInflater) context.getSystemService(Activity.LAYOUT_INFLATER_SERVICE);
+        inflater.inflate(R.layout.statistics_layout, this, true);
+	
+        tv1 = (TextView)findViewById(R.id.state_text1);
+        stateText = (TextView)findViewById(R.id.state_text2);
+        tv3 = (TextView)findViewById(R.id.walking_text1);
+        walkingText = (TextView)findViewById(R.id.walking_text2);
+        statusTimer = (TextView)findViewById(R.id.state_time);
+        stepper = (TextView)findViewById(R.id.step);
+        
+        mTypeface = Typeface.createFromAsset(context.getAssets(), "LeagueGothic-Regular.otf");
+        mTypeface2 = Typeface.createFromAsset(context.getAssets(), "Ubuntu-Light.ttf"/*"LeagueGothic-CondensedRegular.otf"*/);
+        
+        tv1.setTypeface(mTypeface);
+        stateText.setTypeface(mTypeface);
+        tv3.setTypeface(mTypeface);
+        walkingText.setTypeface(mTypeface);
+        statusTimer.setTypeface(mTypeface2);
+        stateView = (ImageView) findViewById(R.id.imageView1);
+        
+        
+        l1 = (LinearLayout) findViewById(R.id.state_body_wrapper);
+        walkingStatusView = new WalkingStatus(context);
+        l1.addView(walkingStatusView, -1, 680);
+        
+        
+        
+        CountDownTimer mTimer = new CountDownTimer(86400000, 1000) {
+			
+			@Override
+			public void onTick(long millisUntilFinished) {
+				
+				if(second<59){
+					second++;
+				}else{
+					second = 0;
+					if(minute<59){
+						minute++;
+					}else{
+						minute=0;
+						hour++;
+					}
+				}
+				
+				statusTimer.setText(hour+" : "+minute+" : "+second);
+				
+			}
+			
+			@Override
+			public void onFinish() {
+				// TODO Auto-generated method stub
+				
+			}
+		};
+		mTimer.start();
+        
+	}
+	
+	
+}
+

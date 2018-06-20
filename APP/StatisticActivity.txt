@@ -1,0 +1,67 @@
+package com.example.foothing;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.support.v4.app.FragmentActivity;
+import android.view.Window;
+import android.view.WindowManager;
+
+public class StatisticActivity extends FragmentActivity{
+
+	
+	public void onCreate(Bundle savedInstanceState){
+		super.onCreate(savedInstanceState);
+		requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
+        setContentView(R.layout.statistic_fragment);
+
+
+       Statistic_Fragment1 piechart = (Statistic_Fragment1)getSupportFragmentManager().findFragmentById(R.id.statistic_fragment1);
+       Statistic_Fragment2 linechart = (Statistic_Fragment2)getSupportFragmentManager().findFragmentById(R.id.statistic_fragment2);
+     
+       if(piechart == null ||!piechart.isInLayout()){
+        	Intent showLinechart = new Intent(getApplicationContext(),StatisticActivity1.class);
+        	startActivity(showLinechart);
+        }else{
+        	piechart.update();
+        }
+       
+       
+        
+        if(linechart == null ||!linechart.isInLayout()){
+        	Intent showLinechart = new Intent(getApplicationContext(),StatisticActivity2.class);
+        	startActivity(showLinechart);
+        }else{
+        	linechart.update();
+        }
+      
+	}
+	
+	
+	
+	
+		
+
+	protected void onStart(){
+		super.onStart();
+	}
+	
+	protected void onResume(){
+		super.onResume();
+	}
+	
+	protected void onPause(){
+		super.onPause();
+	}
+	
+	protected void onStop(){
+		super.onStop();
+	}
+	
+	protected void onDestroy(){
+		super.onDestroy();
+	}
+	
+}

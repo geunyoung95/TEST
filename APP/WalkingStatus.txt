@@ -1,0 +1,179 @@
+package com.example.foothing;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Paint.Style;
+import android.graphics.RectF;
+import android.graphics.Typeface;
+import android.util.Log;
+import android.view.View;
+import android.view.View.MeasureSpec;
+
+public class WalkingStatus extends View{
+
+	/** Size of tabbar */
+	int mWidth;
+	int mHeight;
+	int boxoffset;
+	int boxLength = 40;
+	final int strokeWidth = 3;
+	
+	int textSize1 = 130;
+	int textSize2 = 50;
+	int verticalMargin = 15;
+	int textLength;
+	int textOffset;
+	
+	int rectSizeX;
+	int rectSizeY = 300;
+	int rectOffset;
+	int rectColor = Color.LTGRAY;
+	
+	int normalColor = Color.rgb(0, 216, 104);
+	int abnormalColor = Color.rgb(255, 180, 32);
+	int currentColor = 0;
+	Typeface mTypeface;
+	
+	int statusNumber = 7;
+	int statusTextNumber=2;
+	
+	Bitmap leftfootBitmap;
+	Bitmap rightfootBitmap;
+	
+	BitmapFactory.Options options;
+	
+	Color mColor = new Color();
+	
+	RectF[] boxRectF = new RectF[15];
+	Paint boxPaint;
+	Paint textPaint;
+	Paint RectPaint;
+	Paint footPaint;
+	RectF mRectF;
+	
+	
+	
+	String[] statusTexts = {"안장걸음 입니다.", "정상걸음 입니다." ,"팔자걸음 입니다."};
+	
+	public WalkingStatus(Context context) {
+		super(context);
+		// TODO Auto-generated constructor stub
+		for(int i = 0; i<14; i++){
+			boxRectF[i] = new RectF();
+		}
+		boxPaint = new Paint();
+		boxPaint.setAntiAlias(true);
+		textPaint = new Paint();
+		textPaint.setAntiAlias(true);
+		RectPaint = new Paint();
+		RectPaint.setAntiAlias(true);
+		footPaint = new Paint();
+		footPaint.setAntiAlias(true);
+		
+		mRectF = new RectF();
+		
+		mTypeface = Typeface.createFromAsset(context.getAssets(), "Ubuntu-Light.ttf");
+		
+		options = new BitmapFactory.Options();
+		options.inPreferQualityOverSpeed = true;
+		options.outHeight = 200;
+		options.outWidth = 200;
+		leftfootBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.left4, options);
+		rightfootBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.right4, options);
+		
+		setStatusNumber(7); //temporary
+	}
+	
+	
+	
+	@Override
+	protected void onDraw(Canvas canvas) {
+		// TODO Auto-generated method stub
+		boxPaint.setStyle(Style.STROKE);
+		boxPaint.setStrokeWidth(strokeWidth);
+		boxPaint.setColor(Color.BLACK);
+		
+		/** draw boxes **/
+		for(int i=0; i<14; i++){
+			boxRectF[i].set(boxoffset + boxLength/2 + i*boxLength, textSize1 + verticalMargin, 
+					boxoffset + boxLength/2 + (i+1)*boxLength, textSize1 + verticalMargin + boxLength);
+			canvas.drawRect(boxRectF[i], boxPaint);
+			
+			if(i==statusNumber /* state number */){
+				boxPaint.setStyle(Style.FILL);
+					boxPaint.setColor(currentColor);
+				boxRectF[i].set(boxoffset + boxLength/2 + i*boxLength+strokeWidth, textSize1+verticalMargin+strokeWidth,
+						boxoffset + (i+1)*boxLength-strokeWidth + boxLength/2, textSize1+verticalMargin+boxLength-strokeWidth);
+				canvas.drawRect(boxRectF[i], boxPaint);
+				boxPaint.setStyle(Style.STROKE);
+				boxPaint.setColor(Color.BLACK);
+			}
+		}
+		
+		/** draw texts **/
+		textPaint.setColor(currentColor);
+		textPaint.setTextSize(textSize1);
+		textPaint.setTypeface(mTypeface);
+		
+		textLength = (int) textPaint.measureText(""+(statusNumber+1));
+		textOffset = (mWidth - textLength)/2;
+		
+		canvas.drawText(""+(statusNumber+1), textOffset, textSize1, textPaint);
+		
+		textPaint.setTextSize(textSize2);
+		textLength = (int) textPaint.measureText(statusTexts[statusTextNumber]);
+		textOffset = (mWidth - textLength)/2;
+		
+		canvas.drawText(statusTexts[statusTextNumber], textOffset, textSize1+2*verticalMargin+boxLength+textSize2, textPaint);
+		
+		/** draw footRects **/
+		RectPaint.setColor(rectColor);
+		mRectF.set(rectOffset, 4*verticalMargin + boxLength + textSize1 + textSize2, 
+				mWidth-rectOffset, 4*verticalMargin + boxLength + textSize2 + textSize1 +rectSizeY);
+		
+		canvas.drawRect(mRectF, RectPaint);
+		
+		/** foot bitmap **/
+		canvas.save(Canvas.MATRIX_SAVE_FLAG);
+		canvas.rotate((float) (7.5-statusNumber)*5, 205, 400);
+		canvas.drawBitmap(leftfootBitmap, 105, 300, footPaint);
+		canvas.restore();
+		canvas.save();
+		canvas.rotate((float) (360 - (7.5-statusNumber)*5), mWidth-205, 400);
+		canvas.drawBitmap(rightfootBitmap, mWidth-405, 300, footPaint);
+		canvas.restore();
+
+		
+	}
+	
+	public void setStatusNumber(int num){
+		statusNumber = num;
+		if(num < 6) statusTextNumber = 0;
+		else if(num > 8) statusTextNumber = 2;
+		else statusTextNumber = 1;
+		
+		if(statusTextNumber == 0 || statusTextNumber == 2) currentColor = abnormalColor;
+		if(statusTextNumber == 1) currentColor = normalColor;
+		
+		invalidate();
+	}
+
+
+	@Override
+	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+		// TODO Auto-generated method stub
+		mWidth = MeasureSpec.getSize(widthMeasureSpec);
+		mHeight = MeasureSpec.getSize(heightMeasureSpec);
+		boxoffset = (mWidth - boxLength*15)/2;
+		rectSizeX = (int) (0.8*mWidth);
+		rectOffset = (mWidth-rectSizeX)/2;
+		setMeasuredDimension(mWidth, mHeight);
+		
+	}
+
+}

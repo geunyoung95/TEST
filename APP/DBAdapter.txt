@@ -1,0 +1,249 @@
+package com.example.foothing;
+
+
+import java.util.ArrayList;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
+
+public class DBAdapter extends SQLiteOpenHelper {
+    private static final String DB_NAME = "walkerinfo.db";
+    private static final int VERSION = 1;
+    private static final String TIME = "time";
+    private static final String SITTINGTIME = "Sitting_time";
+    private static final String STANDINGTIME = "Standing_time";
+    private static final String WALKINGTIME = "Walking_time";
+    private static final String WALKINGCOUNT = "Walking_count";
+    private static final String TABLE_NAME = "promise";
+    private static final String TABLE_NAME2 = "stateinfo";
+    private static final String FSTATE = "FootState";
+    private static final String MSTATE = "MovingState";
+    
+    private static final int STANDING = 1;
+    private static final int SITTING = 2;
+    private static final int WALKING = 3;
+    
+    private static final String CREATE_TABLE =
+        "CREATE TABLE " + TABLE_NAME + " (" +
+        TIME + " DATE not null, "+
+        SITTINGTIME + " INTEGER not null, " +
+        STANDINGTIME + " INTEGER not null, " +
+        WALKINGTIME +" INTEGER not null, " +
+        WALKINGCOUNT + " INTEGER not null, " +
+        "PRIMARY KEY("+TIME+") )";
+
+    private static final String CREATE_SUBTABLE =  
+    		"CREATE TABLE " + TABLE_NAME2 + " (" +
+            TIME + " DATE, " +
+            FSTATE + " INTEGER not null, " +
+            MSTATE + " INTEGER not null )";
+    
+    private SQLiteDatabase db;
+    private Handler updateHandler;
+
+    public DBAdapter(Context context, Handler handler) {
+        super(context, DB_NAME, null, VERSION);
+        updateHandler = handler;
+        db = this.getWritableDatabase();
+    }
+
+    @Override
+    public synchronized void close() {
+        db.close();
+        super.close();
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        close();
+        super.finalize();
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        db.execSQL(CREATE_TABLE);
+        db.execSQL(CREATE_SUBTABLE);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME2);
+        onCreate(db);
+    }
+
+    // create
+    public boolean insertInfo(String time) {
+    	//boolean isExistDate = false;
+        ContentValues cv = new ContentValues(); 
+        String searchByTime = 	
+        		"select "+TIME + " from " + TABLE_NAME
+        		+" where "+TIME +"= '"+time+"'";
+        Cursor c1 = db.rawQuery(searchByTime,null);
+    	int result = -1;
+    	
+    	cv.put(TIME, time);
+    	cv.put(SITTINGTIME, 0);
+        cv.put(STANDINGTIME, 0);
+        cv.put(WALKINGTIME, 0);
+        cv.put(WALKINGCOUNT, 0);
+    	c1.moveToFirst();
+    	if(c1.getCount() == 0) result = (int) db.insert(TABLE_NAME, null, cv);
+    	c1.close();
+        return result != -1;
+    }
+    
+    public boolean updateInfo(String time ,int sitting, int standing, int walking, int w_count ){
+    	
+    	ContentValues cv = new ContentValues();
+    	cv.put(SITTINGTIME, sitting);
+    	cv.put(STANDINGTIME, standing);
+    	cv.put(WALKINGTIME, walking);
+    	cv.put(WALKINGCOUNT, w_count);
+    	String updateWhereClause = TIME+"='"+time+"'";
+    	
+    	Message msg = updateHandler.obtainMessage();
+    	msg.arg1 = 4;
+    	msg.arg2 = w_count;
+    	updateHandler.sendMessage(msg);
+    	return (db.update(TABLE_NAME, cv, updateWhereClause, null)==1);
+    	
+    }
+    
+    /** temporary **/
+    public boolean insertInfo3(String date, int state){
+    	ContentValues cv = new ContentValues();
+    	Message msg = updateHandler.obtainMessage();
+    	if(state<0) return false;
+    	
+    	cv.put(TIME, date);
+    	if(state>=14){
+    		cv.put(FSTATE, -1);
+    		if(state==14) {cv.put(MSTATE, STANDING); msg.arg1 = STANDING; }
+    		else if(state==15) {cv.put(MSTATE, SITTING); msg.arg1 = SITTING; }
+    	}else{
+    		cv.put(FSTATE,state);
+        	cv.put(MSTATE,WALKING);
+        	msg.arg1 = WALKING;
+        	msg.arg2 = state;
+    	}
+    	updateHandler.sendMessage(msg);
+    	
+    	return db.insert(TABLE_NAME2 ,null, cv) != -1;
+    	
+    }
+
+    // read
+    public ArrayList<StatisticList> getAllInfo() {
+        ArrayList<StatisticList> info = new ArrayList<StatisticList>();
+        Cursor c = db.query(TABLE_NAME, new String[] {TIME}, null, null, null, null,null);
+
+        if (c.moveToFirst()) {
+            final int indexTime = c.getColumnIndex(TIME);
+
+            do {
+                String time = c.getString(indexTime);
+                Mydata2 mydata2 = new Mydata2(getCurrentStateCount(time,0),
+                		getCurrentStateCount(time,1),getCurrentStateCount(time,2));
+                
+                if(mydata2.Max(mydata2.getStanding(),mydata2.getSitting(),mydata2.getMoving())==0){
+                	 info.add(new StatisticList(R.drawable.standing, time, R.drawable.arrow));
+                }else if(mydata2.Max(mydata2.getStanding(),mydata2.getSitting(),mydata2.getMoving())==1){
+                	 info.add(new StatisticList(R.drawable.sitting, time, R.drawable.arrow));
+                }else if(mydata2.Max(mydata2.getStanding(),mydata2.getSitting(),mydata2.getMoving())==2){
+                	 info.add(new StatisticList(R.drawable.walking, time, R.drawable.arrow));
+                }
+               
+            } while (c.moveToNext());
+        }
+        c.close();
+
+        return info;
+    }
+
+    public ArrayList<Mydata> getAllMydata(String currentTime){
+    	ArrayList<Mydata> mydata = new ArrayList<Mydata>();
+    	String sql ="select * from "+ TABLE_NAME2
+    		+" where "+TIME+ " LIKE" +"'"+currentTime+"%'";
+    	Cursor c = db.rawQuery(sql, null);
+    	
+    	if (c.moveToFirst()) {
+            final int indexTime = c.getColumnIndex(TIME);
+            final int indexFstate = c.getColumnIndex(FSTATE);
+            final int indexMstate = c.getColumnIndex(MSTATE);
+
+            do {
+                String time = c.getString(indexTime);
+                int f_state = c.getInt(indexFstate);
+                int m_state = c.getInt(indexMstate);
+                Log.v("DB STATE", f_state+" "+m_state);
+                mydata.add(new Mydata(time, f_state, m_state));
+            } while (c.moveToNext());
+        }
+        c.close();
+    	return mydata;
+    }
+    // update
+    public boolean updateInfo(StatisticList i) {
+        ContentValues cv = new ContentValues();
+        cv.put(TIME, i.getDate());
+        String[] params = new String[] { i.getDate() };
+        int result = db.update(TABLE_NAME, cv, TIME + "=?", params);
+        return result > 0;
+    }
+
+    // delete
+    public boolean deleteInfo(String date) {
+        String[] params = new String[] { date };
+        int result = db.delete(TABLE_NAME, TIME + "=?", params);
+        return result > 0;
+    }
+    
+    public boolean deleteAll() {
+        int result=db.delete(TABLE_NAME2, null, null);
+        return result > 0;
+     }
+
+    public int getCurrentStateCount( String currentTime, int m_state){
+    	String searchByTime = 	
+    		"select "+MSTATE + " from " + TABLE_NAME2
+    		+" where "+MSTATE +"= "+m_state+" AND "+ TIME+ " = " +"'"+currentTime+"'";// + " and date("+TIME+") = "+currentTime;
+    	
+    
+    	Cursor c1 = db.rawQuery(searchByTime,null);
+    	c1.moveToFirst();
+        
+    	int count =0;
+    	while(c1.moveToNext()){
+    		count ++;
+    	}
+    	c1.close();
+    	
+    	return count;
+    }
+    
+    public Mydata2 getMydata2(String currentTime){
+    	String sql ="select * from "+ TABLE_NAME
+        		+" where "+TIME+ " LIKE" +"'"+currentTime+"%'";
+        	Cursor c = db.rawQuery(sql, null);
+        	
+        	c.moveToFirst();
+                final int indexsittingTime = c.getColumnIndex(SITTINGTIME);
+                final int indexstandingTime = c.getColumnIndex(STANDINGTIME);
+                final int indexwalkingTime = c.getColumnIndex(WALKINGTIME);
+
+                    int sit_time =   c.getInt(indexsittingTime);
+                    int stand_time = c.getInt(indexstandingTime);
+                    int walking_time = c.getInt(indexwalkingTime);
+             Mydata2 temp  = new Mydata2(stand_time,sit_time, walking_time);
+            
+            c.close();
+            return temp;
+    }
+}

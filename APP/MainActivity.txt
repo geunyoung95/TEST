@@ -1,0 +1,293 @@
+package com.example.foothing;
+
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.content.Intent;
+import android.graphics.ColorFilter;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
+import android.support.v4.view.PagerAdapter;
+import android.support.v4.view.ViewPager;
+import android.support.v4.view.ViewPager.OnPageChangeListener;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.ViewGroup.LayoutParams;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+	
+	
+	//database area//
+	private DBAdapter mDb;
+		
+	
+	/** Size of Screen */
+	int mWidth;
+	int headerHeight;
+	int bodyHeight;
+
+	/** Layouts */
+	LinearLayout headerLayout;
+	LinearLayout bodyLayout;
+	
+	/** Custom Action Bar */
+	Tabbar mTabbar;
+	
+	/** viewPager Layout / children Layout */
+	LinearLayout viewPagerLayout;
+	ViewPager mPager;
+	LayoutInflater main_inflater;
+
+	/** viewPager pageCount */
+	int pageCount = 2;
+	
+	/** BlueTooth Adapter */
+	private BluetoothAdapter btAdapter;
+	
+	/** Intent request codes */
+    private static final int REQUEST_CONNECT_DEVICE = 1;
+    private static final int REQUEST_ENABLE_BT = 2;
+    
+    /** State constants **/
+    private static final int STANDING = 1;
+    private static final int SITTING = 2;
+    private static final int WALKING = 3;
+    
+    /** Address of State Drawable **/
+	static final int W_drawable = R.drawable.walking;
+	static final int St_drawable = R.drawable.standing;
+	static final int Si_drawable = R.drawable.sitting;
+    
+	/** TypeFace */
+	Typeface mTypeface;
+	
+	/** Layouts **/
+	StatisticsLayout s1;
+	StatusLayout statusLayout;
+	
+	/** BlueTooth Message Handler */
+	Handler updateHandler = new Handler(){
+
+		@Override
+		public void handleMessage(Message msg) {
+			Log.v("Handler", msg.arg1+"    "+msg.arg2);
+			if(statusLayout != null){
+				if(msg.arg1 == 4){
+					statusLayout.stepper.setText(msg.arg2+" Steps");
+				}
+				if(msg.arg1 == WALKING){
+
+					statusLayout.stepper.setVisibility(View.VISIBLE);
+					if(statusLayout.stateText.getText().equals("WALKING"));
+					else{
+						statusLayout.stateText.setText("WALKING");
+						statusLayout.changeTime(WALKING);
+						statusLayout.stateView.setImageResource(W_drawable);
+					}
+					statusLayout.walkingStatusView.setStatusNumber(msg.arg2);  
+				}else if(msg.arg1 == STANDING){
+
+					statusLayout.stepper.setVisibility(View.GONE);
+					if(statusLayout.stateText.getText().equals("STANDING"));
+					else{
+						statusLayout.changeTime(STANDING);
+						statusLayout.stateView.setImageResource(St_drawable);
+					}
+					statusLayout.stateText.setText("STANDING");
+				}else if(msg.arg1 == SITTING){
+
+					statusLayout.stepper.setVisibility(View.GONE);
+					if(statusLayout.stateText.getText().equals("SITTING"));
+					else{
+						statusLayout.changeTime(SITTING);
+					}
+					statusLayout.stateText.setText("SITTING");
+					statusLayout.stateView.setImageResource(Si_drawable);
+				}
+			}
+		}
+	};	
+	
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		
+		/** Full Screen Application */
+		requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+		
+        setContentView(R.layout.activity_main);
+     
+        mDb = new DBAdapter(this, updateHandler);
+        mDb.insertInfo(new DateCalender().getDay());
+        /** is Bluetooth available? */
+        if(!btAvailable()) { finish(); return; }
+        
+        /** Bluetooth Setting **/
+        if (!btAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }else{
+        	BluetoothService btService = new BluetoothService(btAdapter, mDb);
+        	btService.connect();
+        }
+        
+        /**Layouts inflating at viewPager**/
+		s1 = new StatisticsLayout(this, mDb);
+		statusLayout = new StatusLayout(this);
+        
+        /** viewPager Setting */
+        mPager = new ViewPager(getBaseContext());
+		ViewPagerAdapter adapter = new ViewPagerAdapter(s1, statusLayout);
+		mPager.setAdapter(adapter);	
+		
+		OnPageChangeListener mPageChangeListener = new OnPageChangeListener(){
+
+			@Override
+			public void onPageScrollStateChanged(int arg0) {
+				// TODO Auto-generated method stub
+				
+			}
+
+			@Override
+			public void onPageScrolled(int arg0, float arg1, int arg2) {
+				mTabbar.setPosition(mWidth*(arg0+arg1));
+				
+			}
+
+			@Override
+			public void onPageSelected(int arg0) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+		};
+		mPager.setOnPageChangeListener(mPageChangeListener);
+		
+		mPager.setCurrentItem(1);
+		
+        
+        /** Graphics Setting */
+        initiate();
+        
+  	}
+	
+	private void initiate() {
+		
+		/** Calculate screen size */
+		DisplayMetrics displayMetrics = new DisplayMetrics();
+		getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+		
+		int deviceWidth = displayMetrics.widthPixels;
+		int deviceHeight = displayMetrics.heightPixels;
+		mWidth = deviceWidth;
+		
+		headerHeight = (int)(2.5*deviceHeight/26);
+		bodyHeight = (int)(23.5*deviceHeight/26);
+		
+		/** Link java objects with XML components */
+		
+		/** Layouts */
+		headerLayout = (LinearLayout) findViewById(R.id.header_layout);
+		bodyLayout = (LinearLayout) findViewById(R.id.body_layout);
+		
+		/** Set up Layout's height
+		 * These components is drawn by specific ratio */
+		headerLayout.getLayoutParams().height = headerHeight;
+		bodyLayout.getLayoutParams().height = bodyHeight;
+		
+		/** Add mTabbar to bodyLayout */
+		mTabbar = new Tabbar(this,mPager);
+		mTabbar.setLayoutParams(new LayoutParams(mWidth, (int) (0.7*headerHeight)));
+		bodyLayout.addView(mTabbar);
+		
+		/** related to viewPager */
+		viewPagerLayout = new LinearLayout(getBaseContext());
+		viewPagerLayout.setOrientation(LinearLayout.VERTICAL);
+		//viewPagerLayout.addView(tb_status, tb_params);
+		viewPagerLayout.addView(mPager, -1, -1);
+		bodyLayout.addView(viewPagerLayout, -1, -1);
+		
+		/** title textview */
+		mTypeface = Typeface.createFromAsset(this.getAssets(), "Lobster_1.0_.otf");
+		TextView titleTextView = (TextView) findViewById(R.id.titleText);
+		titleTextView.setTypeface(mTypeface);
+		statusLayout.stepper.setVisibility(View.GONE);
+		
+		
+	}
+	
+	private boolean btAvailable(){
+		
+		btAdapter = BluetoothAdapter.getDefaultAdapter();
+		
+		if(btAdapter == null){
+			return false;
+		}
+		return true;
+	}
+	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		// TODO Auto-generated method stub
+		switch(requestCode){
+			case REQUEST_ENABLE_BT:
+		        if (resultCode == Activity.RESULT_OK) {
+		        	BluetoothService btService = new BluetoothService(btAdapter,mDb);
+		        	
+		        } else {
+		          
+		        }
+		        break;
+		    }
+	}
+	
+private class ViewPagerAdapter extends PagerAdapter {
+	
+	StatisticsLayout s1;
+	StatusLayout s2;
+	
+	
+		public ViewPagerAdapter(StatisticsLayout s1_, StatusLayout s2_){
+			s1 = s1_;
+			s2 = s2_;
+		}
+		
+		@Override
+		public Object instantiateItem(View pager, int position) {
+			// TODO Auto-generated method stub
+			View v;
+			if(position==0){ v = s1; }
+			else { v = s2; }
+			
+			((ViewPager)pager).addView(v, 0);
+			return v;
+		}
+
+		@Override
+		public void destroyItem(View container, int position, Object object) {
+			((ViewPager) container).removeView((View) object);
+		}
+
+		@Override
+		public int getCount() {
+			return pageCount;
+		}
+
+		@Override
+		public boolean isViewFromObject(View arg0, Object arg1) {
+			// TODO Auto-generated method stub
+			return arg0.equals(arg1);
+		}
+		
+	}
+
+}

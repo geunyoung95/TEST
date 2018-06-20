@@ -1,0 +1,24 @@
+package com.example.foothing;
+
+public class StatisticList {
+	private int f_icon = 0;
+	private String date = null;
+	private int b_icon = 0;
+	
+	
+	public StatisticList(int parm_Ficon, String parm_date, int parm_Bicon){
+		f_icon = parm_Ficon;
+		date = parm_date;
+		b_icon = parm_Bicon;
+	}
+	
+	public void setFicon(int parm_Ficon) { f_icon = parm_Ficon;}
+	public void setDate(String parm_date) { date = parm_date;}
+	public void setBicon(int parm_Bicon) { b_icon = parm_Bicon;}
+	
+	public int getFicon() { return f_icon;}
+	public String getDate() { return date;}
+	public int getBicon() { return b_icon;}
+	
+
+}

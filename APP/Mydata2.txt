@@ -1,0 +1,53 @@
+package com.example.foothing;
+
+
+import java.io.Serializable;
+
+public class Mydata2 implements Serializable{
+
+     private int standing_count = 0;  
+     private int sitting_count = 0;  
+     private int moving_count = 0;  
+
+     public Mydata2(int parm_standing, int parm_sitting, int parm_moving)
+     {
+         standing_count = parm_standing;
+         sitting_count = parm_sitting;
+         moving_count = parm_moving;
+     }
+
+     public void setStanding(int parm_standing) { standing_count = parm_standing; }
+     public void setSitting(int parm_sitting) { sitting_count = parm_sitting; }
+     public void setMoving(int parm_moving) { moving_count = parm_moving; }
+
+     public int getStanding() { return standing_count; }
+     public int getSitting() { return sitting_count; }
+     public int getMoving() { return moving_count; }
+     
+     
+     public int Max(int a, int b, int c){
+    	 int max =0;
+    	 if(a>=b){
+    		 max = a;
+    		 if(max<c){
+    			max = c;
+    		 }
+    	 }
+    	 else{
+    		 max = b;
+    		 if(max<c){
+    			 max = c;
+    		 }
+    	 }
+    	 
+    	 int result = -1;
+    	 if(max == a){
+    		 result = 0;
+    	 }else if(max == b){
+    		 result = 1;
+    	 }else if(max == c){
+    		 result =  2;
+    	 }    	 
+    	 return result;
+     }
+}

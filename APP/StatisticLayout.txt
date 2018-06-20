@@ -1,0 +1,86 @@
+package com.example.foothing;
+
+import java.util.ArrayList;
+
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+
+import android.provider.ContactsContract.DeletedContacts;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
+import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.ScrollView;
+public class StatisticsLayout extends LinearLayout{
+	
+	private ArrayList<StatisticList> data_list;
+	private CustomAdapter m_adapter = null;
+	 
+
+	private ScrollView mScroll_Sv;
+	private ListView m_list = null;
+	
+	public StatisticsLayout(Context context ,DBAdapter myDB) {
+		super(context);
+		init(context, myDB);
+	}
+	
+	public void init(final Context context, final DBAdapter mDb) {
+
+		LayoutInflater inflater = (LayoutInflater) context.getSystemService(Activity.LAYOUT_INFLATER_SERVICE);
+        inflater.inflate(R.layout.status_layout, this, true);
+        
+         mScroll_Sv = (ScrollView)findViewById(R.id.scroll_view1);
+         data_list = new ArrayList<StatisticList>();
+       
+         data_list = mDb.getAllInfo();
+         m_adapter = new CustomAdapter(context, R.layout.list_item, data_list);
+         
+         m_list = (ListView) findViewById(R.id.list);
+         m_list.setAdapter(m_adapter);
+         
+
+         
+
+         
+         refreshList(mDb);
+         m_list.setOnItemClickListener(new OnItemClickListener() {
+			@Override
+			public void onItemClick(AdapterView<?> parent, View view,
+					int position, long id) {
+				
+				String currentTime = m_adapter.getItem(position).getDate();
+		
+				
+				Mydata2 mydata2 = mDb.getMydata2(currentTime);
+				ArrayList<Mydata> mydata = mDb.getAllMydata(currentTime);
+				// TODO Auto-generated method stub
+				Intent i = new Intent(context, StatisticActivity.class);
+				i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+				i.putExtra("mydata2", mydata2);
+				i.putExtra("mydata", mydata);
+		        context.startActivity(i);
+
+			}
+        	 
+         });
+         
+     
+	}		
+	
+	
+	
+	
+	private void refreshList(DBAdapter mDb) {
+        data_list.clear();
+        data_list.addAll(mDb.getAllInfo());
+        m_adapter.notifyDataSetInvalidated();
+    }
+
+	
+
+}

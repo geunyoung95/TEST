@@ -1,0 +1,31 @@
+package com.example.foothing;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class DateCalender {
+
+	
+	SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+	SimpleDateFormat formatter2 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	SimpleDateFormat formatter3 = new SimpleDateFormat("HH:mm:ss");
+	
+	public String getDay(){
+		Date currentTime = new Date();
+		String dTime = formatter.format(currentTime);
+		return dTime;
+	}
+	
+	public String getDate(){
+		Date currentTime = new Date();
+		String dTime = formatter2.format(currentTime);
+		return dTime;
+	}
+	
+	public String getHour(){
+		Date currentTime = new Date(0);
+		String dTime = formatter3.format(currentTime);
+		return dTime;
+	}
+	
+}
